@@ -1,8 +1,8 @@
 import { useContext, useEffect, useState } from "react";
-import Header from "./components/header/Header";
-import WeatherBoard from "./components/weather/WeatherBoard";
-
 import { WeatherContext } from "./context";
+
+import Header from "./components/Header/Header";
+import WeatherBoard from "./components/Weather/WeatherBoard";
 
 import ClearSkyImage from "./assets/backgrounds/clear-sky.jpg";
 import WhiteClouds from "./assets/backgrounds/white-clouds.jpg";
