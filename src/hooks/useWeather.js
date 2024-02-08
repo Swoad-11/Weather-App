@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
+import { LocationContext } from "../context";
 
 const useWeather = () => {
   const [weatherData, setWeatherData] = useState({
@@ -23,6 +24,8 @@ const useWeather = () => {
 
   const [error, setError] = useState(null);
 
+  const { selectedLocation } = useContext(LocationContext);
+
   const fetchWeatherData = async (latitude, longitude) => {
     try {
       setLoading({
@@ -31,11 +34,17 @@ const useWeather = () => {
         message: "Loading weather data...",
       });
 
-      const response = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${
+      let apiUrl;
+      if (selectedLocation && selectedLocation !== "") {
+        apiUrl = `https://api.openweathermap.org/data/2.5/weather?q=${selectedLocation}&appid=${
           import.meta.env.VITE_WEATHER_API_KEY
-        }&units=metric`
-      );
+        }&units=metric`;
+      } else {
+        apiUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${
+          import.meta.env.VITE_WEATHER_API_KEY
+        }&units=metric`;
+      }
+      const response = await fetch(apiUrl);
 
       if (!response.ok) {
         const errorMessage = `Failed to fetch weather data: ${response.status}`;
@@ -82,7 +91,7 @@ const useWeather = () => {
     navigator.geolocation.getCurrentPosition(function (position) {
       fetchWeatherData(position.coords.latitude, position.coords.longitude);
     });
-  }, []);
+  }, [selectedLocation]);
 
   return { weatherData, loading, error };
 };

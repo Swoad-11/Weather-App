@@ -1,8 +1,9 @@
 import { useContext } from "react";
-import { FavoriteContext } from "../../context";
+import { FavoriteContext, LocationContext } from "../../context";
 export default function Modal() {
   const { favorites } = useContext(FavoriteContext);
-  console.log(favorites);
+  const { setSelectedLocation } = useContext(LocationContext);
+
   return (
     <>
       <div className="max-w-xs py-4 bg-white rounded-md border-gray-500 absolute -right-3 top-16 text-black shadow-lg ">
@@ -10,7 +11,10 @@ export default function Modal() {
         <ul className="space-y-2 mt-4 *:py-2 *:px-4 *:cursor-pointer">
           {favorites.length > 0 ? (
             favorites.map((favorite) => (
-              <li key={favorite.location} className="hover:bg-gray-200">
+              <li
+                key={favorite.latitude}
+                onClick={() => setSelectedLocation(favorite.location)}
+              >
                 {favorite.location}
               </li>
             ))
