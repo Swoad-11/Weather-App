@@ -1,4 +1,4 @@
-function getFormattedDate(value, type, inMS) {
+function getFormattedDate(value, type, inMS, timeZone) {
   if (!type) return value;
 
   if (!inMS) {
@@ -6,6 +6,9 @@ function getFormattedDate(value, type, inMS) {
   }
 
   const date = new Date(value);
+
+  // Adjust the date according to the timezone offset
+  date.setSeconds(date.getSeconds() + timeZone - 21600);
 
   let options;
 

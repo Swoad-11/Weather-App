@@ -13,7 +13,6 @@ export default function Search() {
   function handleChange(e) {
     e.preventDefault();
     const value = e.target[0].value;
-    console.log(e);
     doSearch(value);
   }
   return (

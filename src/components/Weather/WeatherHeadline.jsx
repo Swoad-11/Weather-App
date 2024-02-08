@@ -20,13 +20,16 @@ import {
 
 export default function WeatherHeadline() {
   const { weatherData } = useContext(WeatherContext);
-  const { id, temperature, location, time } = weatherData;
+  const { id, temperature, location, time, timeZone, sunrise, sunset } =
+    weatherData;
 
   function weatherIcon(id, time) {
-    const isDay =
-      getFormattedDate(time, "time", false).includes("AM") ||
-      (getFormattedDate(time, "time", false) >= "06:00" &&
-        getFormattedDate(time, "time", false) <= "18:00");
+    const currentTime = new Date(time);
+    const sunriseTime = new Date(sunrise);
+    const sunsetTime = new Date(sunset);
+
+    const isDay = currentTime >= sunriseTime && currentTime <= sunsetTime;
+
     switch (id) {
       case 801:
         return isDay ? cloudIcon1d : cloudIcon1n;
@@ -113,8 +116,8 @@ export default function WeatherHeadline() {
           </div>
         </div>
         <p className="text-sm lg:text-lg">
-          {getFormattedDate(time, "time", false)} -{" "}
-          {getFormattedDate(time, "date", false)}
+          {getFormattedDate(time, "time", false, timeZone)} -{" "}
+          {getFormattedDate(time, "date", false, timeZone)}
         </p>
       </div>
     </>

@@ -13,6 +13,9 @@ const useWeather = () => {
     icon: "",
     wind: "",
     time: "",
+    timeZone: "",
+    sunrise: "",
+    sunset: "",
     longitude: "",
     latitude: "",
   });
@@ -66,6 +69,9 @@ const useWeather = () => {
         icon: data?.weather[0]?.icon,
         wind: data?.wind?.speed,
         time: data?.dt,
+        timeZone: data?.timezone,
+        sunrise: data?.sys?.sunrise,
+        sunset: data?.sys?.sunset,
         longitude: longitude,
         latitude: latitude,
       };
