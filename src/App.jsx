@@ -1,18 +1,25 @@
 import Page from "./Page";
 import {
-  WeatherProvider,
   FavoriteProvider,
   LocationProvider,
+  SettingsProvider,
+  ToastProvider,
+  WeatherProvider,
 } from "./provider";
+
 function App() {
   return (
-    <LocationProvider>
-      <WeatherProvider>
-        <FavoriteProvider>
-          <Page />
-        </FavoriteProvider>
-      </WeatherProvider>
-    </LocationProvider>
+    <ToastProvider>
+      <SettingsProvider>
+        <LocationProvider>
+          <WeatherProvider>
+            <FavoriteProvider>
+              <Page />
+            </FavoriteProvider>
+          </WeatherProvider>
+        </LocationProvider>
+      </SettingsProvider>
+    </ToastProvider>
   );
 }
 

@@ -1,105 +1,127 @@
-import { useContext, useEffect, useState } from "react";
-import { LocationContext } from "../context";
+import { useCallback, useEffect, useState } from "react";
+import { fetchAirQuality, fetchCurrent, fetchForecast } from "../lib/api";
+import { dayKey, localHour } from "../lib/format";
 
-const useWeather = () => {
-  const [weatherData, setWeatherData] = useState({
-    location: "",
-    climate: "",
-    temperature: "",
-    maxTemperature: "",
-    minTemperature: "",
-    humidity: "",
-    cloudPercentage: "",
-    icon: "",
-    wind: "",
-    time: "",
-    timeZone: "",
-    sunrise: "",
-    sunset: "",
-    longitude: "",
-    latitude: "",
-  });
+const REFRESH_MS = 10 * 60 * 1000;
 
-  const [loading, setLoading] = useState({
-    state: false,
-    message: "",
-  });
-
-  const [error, setError] = useState(null);
-
-  const { selectedLocation } = useContext(LocationContext);
-
-  const fetchWeatherData = async (latitude, longitude) => {
-    try {
-      setLoading({
-        ...loading,
-        state: true,
-        message: "Loading weather data...",
-      });
-
-      let apiUrl;
-      if (selectedLocation && selectedLocation !== "") {
-        apiUrl = `https://api.openweathermap.org/data/2.5/weather?q=${selectedLocation}&appid=${
-          import.meta.env.VITE_WEATHER_API_KEY
-        }&units=metric`;
-      } else {
-        apiUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${
-          import.meta.env.VITE_WEATHER_API_KEY
-        }&units=metric`;
-      }
-      const response = await fetch(apiUrl);
-
-      if (!response.ok) {
-        const errorMessage = `Failed to fetch weather data: ${response.status}`;
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
-
-      const updateWeather = {
-        ...weatherData,
-        location: data?.name,
-        climate: data?.weather[0]?.description,
-        id: data?.weather[0]?.id,
-        temperature: data?.main?.temp,
-        maxTemperature: data?.main?.temp_max,
-        minTemperature: data?.main?.temp_min,
-        humidity: data?.main?.humidity,
-        cloudPercentage: data?.clouds?.all,
-        icon: data?.weather[0]?.icon,
-        wind: data?.wind?.speed,
-        time: data?.dt,
-        timeZone: data?.timezone,
-        sunrise: data?.sys?.sunrise,
-        sunset: data?.sys?.sunset,
-        longitude: longitude,
-        latitude: latitude,
-      };
-      setWeatherData(updateWeather);
-    } catch (error) {
-      setError(error);
-    } finally {
-      setLoading({
-        ...loading,
-        state: false,
-        message: "",
-      });
-    }
+function normalize(location, cur, fc, air) {
+  const tz = cur.timezone;
+  const current = {
+    id: cur.weather[0].id,
+    main: cur.weather[0].main,
+    description: cur.weather[0].description,
+    icon: cur.weather[0].icon,
+    isDay: cur.weather[0].icon.endsWith("d"),
+    temp: cur.main.temp,
+    feelsLike: cur.main.feels_like,
+    min: cur.main.temp_min,
+    max: cur.main.temp_max,
+    humidity: cur.main.humidity,
+    pressure: cur.main.pressure,
+    visibility: cur.visibility ?? 10000,
+    clouds: cur.clouds?.all ?? 0,
+    windSpeed: cur.wind?.speed ?? 0,
+    windDeg: cur.wind?.deg ?? 0,
+    windGust: cur.wind?.gust,
+    rain: cur.rain?.["1h"] ?? 0,
+    sunrise: cur.sys.sunrise,
+    sunset: cur.sys.sunset,
+    dt: cur.dt,
+    tz,
   };
 
+  const hourly = fc.list.map((h) => ({
+    dt: h.dt,
+    day: dayKey(h.dt, tz),
+    temp: h.main.temp,
+    feelsLike: h.main.feels_like,
+    humidity: h.main.humidity,
+    id: h.weather[0].id,
+    icon: h.weather[0].icon,
+    description: h.weather[0].description,
+    pop: Math.round((h.pop ?? 0) * 100),
+    wind: h.wind?.speed ?? 0,
+    rain: h.rain?.["3h"] ?? 0,
+  }));
+
+  const byDay = new Map();
+  for (const h of hourly) {
+    if (!byDay.has(h.day)) byDay.set(h.day, []);
+    byDay.get(h.day).push(h);
+  }
+  const today = dayKey(cur.dt, tz);
+  const daily = [...byDay.entries()].map(([key, items]) => {
+    const temps = items.map((i) => i.temp);
+    if (key === today) temps.push(current.min, current.max, current.temp);
+    // Represent the day by the slot nearest midday.
+    const rep = items.reduce((best, i) =>
+      Math.abs(localHour(i.dt, tz) - 13) < Math.abs(localHour(best.dt, tz) - 13) ? i : best
+    );
+    return {
+      key,
+      dt: items[0].dt,
+      isToday: key === today,
+      min: Math.min(...temps),
+      max: Math.max(...temps),
+      icon: rep.icon.replace("n", "d"),
+      description: rep.description,
+      pop: Math.max(...items.map((i) => i.pop)),
+    };
+  });
+
+  return {
+    location: {
+      ...location,
+      name: location.name || cur.name,
+      country: location.country || cur.sys.country,
+    },
+    current,
+    hourly,
+    daily: daily.slice(0, 6),
+    air: air?.list?.[0]
+      ? { aqi: air.list[0].main.aqi, ...air.list[0].components }
+      : null,
+  };
+}
+
+export default function useWeather(location) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [nonce, setNonce] = useState(0);
+
+  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+
   useEffect(() => {
-    setLoading({
-      ...loading,
-      state: true,
-      message: "Finding your location...",
-    });
+    if (!location) return;
+    let cancelled = false;
+    const { lat, lon } = location;
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      fetchCurrent(lat, lon),
+      fetchForecast(lat, lon),
+      fetchAirQuality(lat, lon).catch(() => null),
+    ])
+      .then(([cur, fc, air]) => {
+        if (cancelled) return;
+        setData(normalize(location, cur, fc, air));
+        setUpdatedAt(Date.now());
+      })
+      .catch((err) => !cancelled && setError(err))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location?.lat, location?.lon, nonce]);
 
-    navigator.geolocation.getCurrentPosition(function (position) {
-      fetchWeatherData(position.coords.latitude, position.coords.longitude);
-    });
-  }, [selectedLocation]);
+  // Keep the data fresh while the tab stays open.
+  useEffect(() => {
+    const t = setInterval(refresh, REFRESH_MS);
+    return () => clearInterval(t);
+  }, [refresh, location?.lat, location?.lon]);
 
-  return { weatherData, loading, error };
-};
-
-export default useWeather;
+  return { data, loading, error, updatedAt, refresh };
+}
